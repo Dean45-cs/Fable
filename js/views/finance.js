@@ -56,7 +56,7 @@ Views.finance = (() => {
       monthBars.push({
         x: U.MONTHS[d.getMonth()].slice(0, 3),
         y: Math.round(Store.spentInMonth(key)),
-        color: key === mk ? Charts.COLORS.accent : '#3a4763'
+        color: key === mk ? Charts.COLORS.accent : 'rgba(255,255,255,.18)'
       });
     }
     const hasMonths = monthBars.some(b => b.y > 0);

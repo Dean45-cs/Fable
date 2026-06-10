@@ -24,7 +24,7 @@ Views.sleep = (() => {
       return {
         x: d.slice(8) + '.',
         y: Math.round(h * 10) / 10,
-        color: !e ? '#1a2231' : h >= p.sleepGoal ? Charts.COLORS.green : h >= p.sleepGoal - 1.5 ? Charts.COLORS.blue : Charts.COLORS.orange
+        color: !e ? 'rgba(255,255,255,.1)' : h >= p.sleepGoal ? Charts.COLORS.green : h >= p.sleepGoal - 1.5 ? Charts.COLORS.teal : Charts.COLORS.orange
       };
     });
 
@@ -60,7 +60,7 @@ Views.sleep = (() => {
         <div class="chart-wrap">${Charts.bars(bars, { goal: p.sleepGoal })}</div>
         <div class="chart-legend">
           <span><i style="background:${Charts.COLORS.green}"></i>Ziel erreicht</span>
-          <span><i style="background:${Charts.COLORS.blue}"></i>Fast geschafft</span>
+          <span><i style="background:${Charts.COLORS.teal}"></i>Fast geschafft</span>
           <span><i style="background:${Charts.COLORS.orange}"></i>Zu wenig</span>
         </div>
       </div>

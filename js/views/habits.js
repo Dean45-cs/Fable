@@ -87,10 +87,10 @@ Views.habits = (() => {
         <h3 class="card-title">🗓️ Konstanz – letzte 16 Wochen</h3>
         <div style="overflow-x:auto;padding-bottom:4px">${Charts.heatmap(16, intensity)}</div>
         <div class="chart-legend">
-          <span><i style="background:#1a2231"></i>Nichts</span>
-          <span><i style="background:#234d41"></i>Etwas</span>
-          <span><i style="background:#2a7a60"></i>Über die Hälfte</span>
-          <span><i style="background:#2dd4a7"></i>Alles erledigt</span>
+          <span><i style="background:rgba(255,255,255,.1)"></i>Nichts</span>
+          <span><i style="background:rgba(48,209,88,.28)"></i>Etwas</span>
+          <span><i style="background:rgba(48,209,88,.58)"></i>Über die Hälfte</span>
+          <span><i style="background:#30d158"></i>Alles erledigt</span>
         </div>
       </div>
     `;

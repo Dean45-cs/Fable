@@ -140,7 +140,7 @@ Views.dashboard = (() => {
           <div class="stat">
             <span class="stat-label">💧 Wasser heute</span>
             <span class="stat-value">${U.fmtNum(tot.water / 1000, 1)}l <small>/ ${U.fmtNum(p.waterGoal / 1000, 1)}l</small></span>
-            <div class="bar"><i style="width:${(waterPct * 100).toFixed(0)}%;background:linear-gradient(90deg,#38bdf8,#7c6cff)"></i></div>
+            <div class="bar"><i style="width:${(waterPct * 100).toFixed(0)}%;background:linear-gradient(90deg,#64d2ff,#0a84ff)"></i></div>
             <div class="water-row">
               <button class="water-btn" data-water="250">+250</button>
               <button class="water-btn" data-water="500">+500</button>

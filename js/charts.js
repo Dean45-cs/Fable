@@ -6,8 +6,9 @@
 const Charts = (() => {
 
   const COLORS = {
-    accent: '#7c6cff', blue: '#38bdf8', green: '#2dd4a7',
-    red: '#ff6b81', orange: '#ffb454', grid: '#232d3f', text: '#5d6b82'
+    accent: '#5e5ce6', blue: '#0a84ff', green: '#30d158',
+    red: '#ff453a', orange: '#ff9f0a', teal: '#64d2ff',
+    grid: 'rgba(255,255,255,.07)', text: '#6e6e76'
   };
 
   function svgOpen(w, h) {
@@ -69,7 +70,7 @@ const Charts = (() => {
       }
       s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
       for (const pt of seg) {
-        s += `<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="3" fill="#10141d" stroke="${color}" stroke-width="2"/>`;
+        s += `<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="3" fill="#141419" stroke="${color}" stroke-width="2"/>`;
       }
     }
 
@@ -143,11 +144,11 @@ const Charts = (() => {
     const color = opts.color || COLORS.accent;
     const label = opts.label != null ? opts.label : Math.round(pct * 100) + '%';
     return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#232d3f" stroke-width="${sw}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="${sw}"/>
       <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
         stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
         transform="rotate(-90 ${size / 2} ${size / 2})"/>
-      ${opts.noLabel ? '' : `<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="${size / 4}" font-weight="700" fill="#e8edf5">${U.esc(label)}</text>`}
+      ${opts.noLabel ? '' : `<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="${size / 4}" font-weight="700" fill="#f5f5f7">${U.esc(label)}</text>`}
     </svg>`;
   }
 

@@ -35,12 +35,12 @@ Views.nutrition = (() => {
     const kcalBars = days.map(d => ({
       x: U.WEEKDAYS_SHORT[U.parseDate(d).getDay()],
       y: Store.nutritionTotals(d).kcal,
-      color: d === today ? Charts.COLORS.accent : '#3a4763'
+      color: d === today ? Charts.COLORS.accent : 'rgba(255,255,255,.18)'
     }));
     const protBars = days.map(d => ({
       x: U.WEEKDAYS_SHORT[U.parseDate(d).getDay()],
       y: Store.nutritionTotals(d).protein,
-      color: d === today ? Charts.COLORS.green : '#2a5f51'
+      color: d === today ? Charts.COLORS.green : 'rgba(48,209,88,.4)'
     }));
 
     c.innerHTML = `
@@ -60,7 +60,7 @@ Views.nutrition = (() => {
         <div class="card"><div class="stat">
           <span class="stat-label">💧 Wasser</span>
           <span class="stat-value">${U.fmtNum(tot.water / 1000, 1)}l <small>/ ${U.fmtNum(p.waterGoal / 1000, 1)}l</small></span>
-          <div class="bar"><i style="width:${(waterPct * 100).toFixed(0)}%;background:linear-gradient(90deg,#38bdf8,#7c6cff)"></i></div>
+          <div class="bar"><i style="width:${(waterPct * 100).toFixed(0)}%;background:linear-gradient(90deg,#64d2ff,#0a84ff)"></i></div>
           <div class="water-row">
             <button class="water-btn" data-water="250">+250 ml</button>
             <button class="water-btn" data-water="500">+500 ml</button>
