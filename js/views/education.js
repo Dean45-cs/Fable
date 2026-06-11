@@ -17,6 +17,8 @@ Views.education = (() => {
   const STATUS = ['offen', 'läuft', 'fertig'];
   const STATUS_PILL = { offen: 'gray', 'läuft': 'blue', fertig: 'green' };
 
+  let noteSearch = '';
+
   function render(c) {
     const s = Store.get();
     const e = s.education;
@@ -26,6 +28,24 @@ Views.education = (() => {
     const avgGrade = U.avg(grades.map(x => x.grade));
     const upcoming = e.exams.filter(x => x.date >= today).sort((a, b) => a.date < b.date ? -1 : 1);
     const avgProgress = e.topics.length ? U.avg(e.topics.map(t => t.progress || 0)) : NaN;
+
+    // Lernzeit: diese Woche + Chart der letzten 8 Wochen (Stunden)
+    const weekStart = U.startOfWeek(today);
+    const weekMinutes = U.sum(e.sessions.filter(x => x.date >= weekStart && x.date <= today).map(x => x.minutes || 0));
+    const learnBars = [];
+    for (let i = 7; i >= 0; i--) {
+      const start = U.addDays(weekStart, -7 * i);
+      const end = U.addDays(start, 6);
+      const mins = U.sum(e.sessions.filter(x => x.date >= start && x.date <= end).map(x => x.minutes || 0));
+      learnBars.push({ x: start.slice(8) + '.' + start.slice(5, 7), y: Math.round(mins / 60 * 10) / 10, color: i === 0 ? Charts.COLORS.accent : 'rgba(255,255,255,.18)' });
+    }
+    const hasLearn = learnBars.some(b => b.y > 0);
+
+    const nq = noteSearch.toLowerCase();
+    const filteredNotes = U.sortByDateDesc(e.notes).filter(n => !nq ||
+      (n.title || '').toLowerCase().includes(nq) ||
+      (n.content || '').toLowerCase().includes(nq) ||
+      (n.tag || '').toLowerCase().includes(nq));
 
     c.innerHTML = `
       <div class="grid grid-4">
@@ -45,16 +65,19 @@ Views.education = (() => {
           <span class="stat-sub">${upcoming.length ? U.esc(upcoming[0].title) : 'Keine geplant'}</span>
         </div></div>
         <div class="card"><div class="stat">
-          <span class="stat-label">Notizen</span>
-          <span class="stat-value">${e.notes.length}</span>
+          <span class="stat-label">⏱️ Lernzeit diese Woche</span>
+          <span class="stat-value">${U.fmtHours(weekMinutes / 60)}</span>
+          <span class="stat-sub">${e.notes.length} Notizen gesamt</span>
         </div></div>
       </div>
 
       <div class="quick-actions">
-        <button class="btn primary" id="addNote">📝 Notiz</button>
+        <button class="btn primary" id="addSession">⏱️ Lernzeit eintragen</button>
+        <button class="btn" id="addNote">📝 Notiz</button>
         <button class="btn" id="addTopic">📚 Lernthema</button>
         <button class="btn" id="addProject">📁 Projekt</button>
         <button class="btn" id="addExam">🎓 Prüfung / Note</button>
+        <button class="btn" id="goObsidian">📂 Obsidian-Notizen</button>
       </div>
 
       <div class="grid grid-2 section-gap">
@@ -88,7 +111,13 @@ Views.education = (() => {
         </div>
       </div>
 
-      <div class="card section-gap">
+      <div class="grid grid-2 section-gap">
+        <div class="card">
+          <h3 class="card-title">⏱️ Lernzeit pro Woche (Stunden)</h3>
+          ${hasLearn ? `<div class="chart-wrap">${Charts.bars(learnBars, { height: 180 })}</div>`
+                     : `<div class="empty"><span class="empty-icon">⏱️</span>Trag deine erste Lerneinheit ein – auch 20 Minuten zählen.</div>`}
+        </div>
+        <div class="card">
         <h3 class="card-title">📁 Projekte</h3>
         <div class="list">
           ${e.projects.length ? e.projects.map(pr => `
@@ -101,11 +130,14 @@ Views.education = (() => {
               <div class="li-actions"><button class="icon-btn danger" data-project-del="${pr.id}" title="Löschen">🗑</button></div>
             </div>`).join('') : `<div class="empty"><span class="empty-icon">📁</span>Berichtsheft, Azubi-Projekt, Präsentation – behalte alles im Blick.</div>`}
         </div>
+        </div>
       </div>
 
       <div class="card section-gap">
-        <h3 class="card-title">📝 Notizen</h3>
-        ${e.notes.length ? U.sortByDateDesc(e.notes).slice(0, 20).map(n => `
+        <h3 class="card-title">📝 Notizen
+          <input type="text" id="noteSearch" placeholder="🔍 Titel, Inhalt, Tag…" value="${U.esc(noteSearch)}" style="max-width:220px;width:auto;padding:5px 10px;font-size:13px">
+        </h3>
+        ${filteredNotes.length ? filteredNotes.slice(0, 20).map(n => `
           <div class="list-item" style="margin-bottom:8px">
             <div class="li-main">
               <div class="li-title">${U.esc(n.title)} ${n.tag ? `<span class="pill blue">${U.esc(n.tag)}</span>` : ''}</div>
@@ -116,14 +148,25 @@ Views.education = (() => {
               <button class="icon-btn" data-note-edit="${n.id}" title="Bearbeiten">✏️</button>
               <button class="icon-btn danger" data-note-del="${n.id}" title="Löschen">🗑</button>
             </div>
-          </div>`).join('') : `<div class="empty"><span class="empty-icon">📝</span>Halte fest, was du in der Berufsschule und im Betrieb lernst.</div>`}
+          </div>`).join('') : `<div class="empty"><span class="empty-icon">📝</span>${nq ? 'Nichts gefunden.' : 'Halte fest, was du in der Berufsschule und im Betrieb lernst.'}</div>`}
       </div>
     `;
 
+    c.querySelector('#addSession').onclick = openSessionModal;
     c.querySelector('#addNote').onclick = () => openNoteModal();
     c.querySelector('#addTopic').onclick = openTopicModal;
     c.querySelector('#addProject').onclick = openProjectModal;
     c.querySelector('#addExam').onclick = openExamModal;
+    c.querySelector('#goObsidian').onclick = () => App.go('obsidian');
+
+    const ns = c.querySelector('#noteSearch');
+    ns.oninput = () => {
+      noteSearch = ns.value;
+      const pos = ns.selectionStart;
+      App.refresh();
+      const ns2 = document.querySelector('#noteSearch');
+      if (ns2) { ns2.focus(); ns2.setSelectionRange(pos, pos); }
+    };
 
     c.querySelectorAll('[data-topic-plus]').forEach(b => b.onclick = () => {
       Store.update(st => {
@@ -164,6 +207,40 @@ Views.education = (() => {
     c.querySelectorAll('[data-note-del]').forEach(b => b.onclick = () => {
       UI.confirmDlg('Notiz löschen?', () => {
         Store.update(st => st.education.notes = st.education.notes.filter(x => x.id !== b.dataset.noteDel));
+        App.refresh();
+      });
+    });
+  }
+
+  function openSessionModal() {
+    const topics = Store.get().education.topics.map(t => t.name);
+    UI.openModal('Lernzeit eintragen', `
+      <form>
+        <div class="form-row">
+          ${UI.field('Minuten', UI.numInput('sMinutes', '', 'z. B. 45', '5'))}
+          ${UI.field('Datum', UI.dateInput('sDate'))}
+        </div>
+        ${UI.field('Thema (optional)', UI.select('sTopic', ['Allgemein', ...topics], 'Allgemein'))}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          ${[15, 25, 45, 60, 90].map(m => `<button type="button" class="btn small" data-min="${m}">${m} min</button>`).join('')}
+        </div>
+        ${UI.formActions('Eintragen')}
+      </form>
+    `, body => {
+      body.querySelectorAll('[data-min]').forEach(b => b.onclick = () => {
+        body.querySelector('#sMinutes').value = b.dataset.min;
+      });
+      UI.bindForm(body, b => {
+        const minutes = UI.numVal(b, 'sMinutes');
+        if (isNaN(minutes) || minutes <= 0) { UI.toast('⚠️ Wie lange hast du gelernt?'); return; }
+        Store.update(st => st.education.sessions.push({
+          id: U.uid(),
+          date: UI.val(b, 'sDate') || U.todayStr(),
+          minutes,
+          topic: UI.val(b, 'sTopic')
+        }));
+        UI.closeModal();
+        UI.reward('Lernzeit gespeichert – weiter so! 📚', 15);
         App.refresh();
       });
     });

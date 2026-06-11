@@ -7,11 +7,21 @@ window.Views = window.Views || {};
 
 Views.journal = (() => {
 
+  let searchTerm = '';
+
   function render(c) {
     const s = Store.get();
     const today = U.todayStr();
-    const entries = U.sortByDateDesc(s.journal);
     const todayEntry = s.journal.find(j => j.date === today);
+
+    const q = searchTerm.toLowerCase();
+    const entries = U.sortByDateDesc(s.journal).filter(e => !q ||
+      (e.text || '').toLowerCase().includes(q) ||
+      (e.highlight || '').toLowerCase().includes(q) ||
+      (e.gratitude || '').toLowerCase().includes(q));
+
+    // Rückblick: Eintrag von vor genau einem Monat (±0 Tage)
+    const flashback = !q ? s.journal.find(j => j.date === U.addDays(today, -30)) : null;
 
     // Stimmung der letzten 30 Tage
     const moodPoints = U.lastNDays(30).map(d => {
@@ -44,9 +54,22 @@ Views.journal = (() => {
         </div></div>
       </div>
 
-      <div class="quick-actions">
+      <div class="quick-actions" style="align-items:center">
         <button class="btn primary" id="addEntry">${todayEntry ? '📓 Heutigen Eintrag bearbeiten' : '📓 Wie war dein Tag?'}</button>
+        <input type="text" id="journalSearch" placeholder="🔍 Einträge durchsuchen…" value="${U.esc(searchTerm)}" style="max-width:260px">
       </div>
+
+      ${flashback ? `
+      <div class="card section-gap" style="border-style:dashed">
+        <h3 class="card-title">⏪ Vor einem Monat</h3>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:24px">${UI.moodEmoji(flashback.mood)}</span>
+          <div>
+            <div class="muted">${U.fmtDate(flashback.date, true)}</div>
+            <p style="margin:4px 0 0;white-space:pre-wrap">${U.esc(flashback.text)}</p>
+          </div>
+        </div>
+      </div>` : ''}
 
       ${hasMood ? `
       <div class="card section-gap">
@@ -65,6 +88,7 @@ Views.journal = (() => {
                   <span class="muted">${U.fmtDate(e.date, true)}</span>
                 </div>
                 ${e.highlight ? `<div class="pill green" style="margin:6px 0">✨ ${U.esc(e.highlight)}</div>` : ''}
+                ${e.gratitude ? `<div class="pill blue" style="margin:6px 6px 6px 0">🙏 ${U.esc(e.gratitude)}</div>` : ''}
                 <p style="margin:6px 0 0;white-space:pre-wrap">${U.esc(e.text)}</p>
               </div>
               <div class="li-actions" style="opacity:1">
@@ -77,6 +101,16 @@ Views.journal = (() => {
     `;
 
     c.querySelector('#addEntry').onclick = () => openEntryModal(todayEntry || null);
+    const search = c.querySelector('#journalSearch');
+    search.oninput = () => {
+      searchTerm = search.value;
+      // Nur die Liste neu rendern würde reichen – der Einfachheit halber alles,
+      // aber Cursor-Position im Suchfeld erhalten:
+      const pos = search.selectionStart;
+      App.refresh();
+      const s2 = document.querySelector('#journalSearch');
+      if (s2) { s2.focus(); s2.setSelectionRange(pos, pos); }
+    };
     c.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
       const e = Store.get().journal.find(x => x.id === b.dataset.edit);
       if (e) openEntryModal(e);
@@ -97,6 +131,7 @@ Views.journal = (() => {
         ${UI.field('Stimmung', UI.moodPicker(e ? e.mood : null))}
         ${UI.field('Dein Tag', UI.textarea('jText', e ? e.text : '', 'Was lief gut? Was hast du gelernt? Was nervt?'))}
         ${UI.field('Highlight des Tages (optional)', UI.textInput('jHighlight', e ? e.highlight : '', 'z. B. Neuer PR beim Bankdrücken!'))}
+        ${UI.field('Dafür bin ich dankbar (optional)', UI.textInput('jGratitude', e ? e.gratitude : '', 'z. B. Meine Familie, gutes Essen…'))}
         ${UI.formActions()}
       </form>
     `, body => {
@@ -110,7 +145,8 @@ Views.journal = (() => {
         const data = {
           id: e ? e.id : U.uid(),
           date, mood, text,
-          highlight: UI.val(b, 'jHighlight')
+          highlight: UI.val(b, 'jHighlight'),
+          gratitude: UI.val(b, 'jGratitude')
         };
         Store.update(st => {
           st.journal = st.journal.filter(x => x.id !== data.id && x.date !== date); // 1 Eintrag pro Tag

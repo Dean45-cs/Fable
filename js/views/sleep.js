@@ -18,6 +18,19 @@ Views.sleep = (() => {
     const avgQ = U.avg(week.map(e => e.quality));
     const lastE = entries[0] || null;
 
+    // Ø Bettzeit: Zeiten nach Mitternacht zählen als „+24h“, damit der Schnitt stimmt
+    const bedMins = week.filter(e => e.bed).map(e => {
+      const [h, m] = e.bed.split(':').map(Number);
+      let mins = h * 60 + m;
+      if (mins < 720) mins += 1440;
+      return mins;
+    });
+    let avgBed = '–';
+    if (bedMins.length) {
+      const m = Math.round(U.avg(bedMins)) % 1440;
+      avgBed = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    }
+
     const bars = U.lastNDays(14).map(d => {
       const e = s.sleep.find(x => x.date === d);
       const h = e ? e.hours : 0;
@@ -38,7 +51,7 @@ Views.sleep = (() => {
         <div class="card"><div class="stat">
           <span class="stat-label">Ø Dauer (7 Tage)</span>
           <span class="stat-value">${isNaN(avgH) ? '–' : U.fmtHours(avgH)}</span>
-          <span class="stat-sub">Ziel: ${U.fmtHours(p.sleepGoal)}</span>
+          <span class="stat-sub">Ziel: ${U.fmtHours(p.sleepGoal)} · ${week.filter(e => e.hours >= p.sleepGoal).length}/7 Nächte geschafft</span>
         </div></div>
         <div class="card"><div class="stat">
           <span class="stat-label">Ø Qualität (7 Tage)</span>
@@ -46,8 +59,9 @@ Views.sleep = (() => {
           <span class="stat-sub">${isNaN(avgQ) ? '' : '★'.repeat(Math.round(avgQ)) + '☆'.repeat(5 - Math.round(avgQ))}</span>
         </div></div>
         <div class="card"><div class="stat">
-          <span class="stat-label">Zielnächte (7 Tage)</span>
-          <span class="stat-value">${week.filter(e => e.hours >= p.sleepGoal).length} <small>/ 7</small></span>
+          <span class="stat-label">Ø Bettzeit (7 Tage)</span>
+          <span class="stat-value">${avgBed}</span>
+          <span class="stat-sub">Konstanz schlägt Schlafdauer</span>
         </div></div>
       </div>
 

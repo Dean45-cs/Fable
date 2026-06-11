@@ -104,6 +104,28 @@ Views.dashboard = (() => {
     // Tagebuch heute schon?
     const journalToday = s.journal.find(j => j.date === today);
 
+    // Anstehende Deadlines & Wochen-Review
+    const upcoming = Store.upcoming();
+    const week = Store.weekStats();
+    const upcomingHtml = upcoming.length ? upcoming.map(u => `
+      <div class="list-item">
+        <span style="font-size:17px">${u.icon}</span>
+        <div class="li-main">
+          <div class="li-title">${U.esc(u.title)}</div>
+          <div class="li-sub">${U.fmtDate(u.date)}</div>
+        </div>
+        <span class="pill ${u.days < 0 ? 'red' : u.days <= 7 ? 'orange' : 'gray'}">${u.days < 0 ? `${-u.days} T. drüber` : u.days === 0 ? 'Heute!' : `in ${u.days} T.`}</span>
+      </div>`).join('') : `<div class="empty"><span class="empty-icon">📅</span>Keine Deadlines in Sicht – freie Bahn.</div>`;
+
+    const weekRow = (icon, label, value, pct) => `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span style="color:var(--text-dim);font-weight:600">${icon} ${label}</span>
+          <span style="font-weight:700">${value}</span>
+        </div>
+        ${pct != null ? `<div class="bar mt-0"><i class="${pct >= 1 ? 'green' : ''}" style="width:${(U.clamp(pct, 0, 1) * 100).toFixed(0)}%"></i></div>` : ''}
+      </div>`;
+
     const kcalPct = p.kcalGoal ? U.clamp(tot.kcal / p.kcalGoal, 0, 1) : 0;
     const protPct = p.proteinGoal ? U.clamp(tot.protein / p.proteinGoal, 0, 1) : 0;
     const waterPct = p.waterGoal ? U.clamp(tot.water / p.waterGoal, 0, 1) : 0;
@@ -206,6 +228,22 @@ Views.dashboard = (() => {
             : `<div class="empty"><span class="empty-icon">📓</span>Schreib heute deinen ersten Eintrag!</div>`}
         </div>
       </div>
+
+      <div class="grid grid-2 section-gap">
+        <div class="card">
+          <h3 class="card-title">📅 Anstehend</h3>
+          <div class="list">${upcomingHtml}</div>
+        </div>
+        <div class="card">
+          <h3 class="card-title">📊 Deine Woche <span class="muted">Mo – heute</span></h3>
+          ${weekRow('💪', 'Workouts', `${week.workouts} / ${p.gymGoalPerWeek}`, week.workouts / (p.gymGoalPerWeek || 1))}
+          ${weekRow('✅', 'Habits erledigt', `${Math.round(week.habitPct * 100)} %`, week.habitPct)}
+          ${weekRow('🍎', 'Ernährung getrackt', `${week.trackedDays} / ${week.days} Tage`, week.trackedDays / week.days)}
+          ${weekRow('📓', 'Tagebuch', `${week.journalDays} / ${week.days} Tage`, week.journalDays / week.days)}
+          ${weekRow('😴', 'Ø Schlaf', isNaN(week.sleepAvg) ? '–' : U.fmtHours(week.sleepAvg), isNaN(week.sleepAvg) ? null : week.sleepAvg / (p.sleepGoal || 8))}
+          ${week.learnMinutes ? weekRow('⏱️', 'Lernzeit', U.fmtHours(week.learnMinutes / 60), null) : ''}
+        </div>
+      </div>
     `;
 
     /* ---------- Listener ---------- */
@@ -239,9 +277,13 @@ Views.dashboard = (() => {
     });
   }
 
-  /** Fortschritt eines Ziels 0..1 (geteilt mit goals-View) */
+  /** Fortschritt eines Ziels 0..1 (geteilt mit goals-View).
+      Bei %-Zielen mit Meilensteinen zählt die Checkliste. */
   function goalPct(g) {
     if (g.done) return 1;
+    if (g.milestones && g.milestones.length && g.unit === '%' && g.target === 100) {
+      return g.milestones.filter(m => m.done).length / g.milestones.length;
+    }
     if (g.target && g.target > 0) return U.clamp((g.current || 0) / g.target, 0, 1);
     return 0;
   }

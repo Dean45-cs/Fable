@@ -27,17 +27,19 @@ const Store = (() => {
       workouts: [],       // {id, date, name, duration, notes, exercises:[{name, sets:[{kg, reps}]}]}
 
       // 🎯 Ziele
-      goals: [],          // {id, title, type:'short'|'long', category, deadline, target, current, unit, done, createdAt}
+      goals: [],          // {id, title, type:'short'|'long', category, deadline, target, current, unit,
+                          //  milestones:[{id, text, done}], done, doneAt, createdAt}
 
       // 💶 Finanzen
       finance: {
         balance: null,            // aktueller Kontostand (manuell oder via CSV)
         balanceDate: null,
-        transactions: []          // {id, date, amount(+/-), category, note}
+        transactions: []          // {id, date, amount(+/-), category, note, importKey?}
       },
 
-      // 🍎 Ernährung – pro Tag
+      // 🍎 Ernährung
       nutrition: {},      // 'YYYY-MM-DD': {water(ml), entries:[{id, name, kcal, protein}]}
+      foodFavorites: [],  // {id, name, kcal, protein}
 
       // 😴 Schlaf
       sleep: [],          // {id, date(=Aufwach-Tag), bed, wake, hours, quality(1-5), note}
@@ -46,15 +48,20 @@ const Store = (() => {
       habits: [],         // {id, name, icon, createdAt, log:{'YYYY-MM-DD':true}}
 
       // 📓 Tagebuch
-      journal: [],        // {id, date, mood(1-5), text, highlight}
+      journal: [],        // {id, date, mood(1-5), text, highlight, gratitude}
 
       // 🎓 Ausbildung
       education: {
         topics: [],       // {id, name, progress(0-100)}
         notes: [],        // {id, date, title, content, tag}
         projects: [],     // {id, name, desc, status:'offen'|'läuft'|'fertig'}
-        exams: []         // {id, date, title, grade}
+        exams: [],        // {id, date, title, grade}
+        sessions: []      // {id, date, minutes, topic}  – Lernzeit
       },
+
+      // 🏃 Laufen
+      runs: [],           // {id, date, name, duration(s), distance(m), points:[[lat,lon,t?]], splits:[s pro km]}
+      routes: [],         // {id, name, distance(m), points:[[lat,lon]]|null, notes}
 
       meta: { createdAt: U.todayStr() }
     };
@@ -110,6 +117,12 @@ const Store = (() => {
       throw new Error('Das ist kein gültiges IchApp-Backup.');
     }
     state = parsed;
+    state = (() => { const s = state; const def = defaultState();
+      const merged = Object.assign({}, def, s);
+      merged.profile = Object.assign({}, def.profile, s.profile || {});
+      merged.finance = Object.assign({}, def.finance, s.finance || {});
+      merged.education = Object.assign({}, def.education, s.education || {});
+      return merged; })();
     save();
   }
 
@@ -168,10 +181,72 @@ const Store = (() => {
     );
   }
 
-  /** Schlaf der letzten Nacht (Eintrag mit Datum heute oder gestern, jüngster zuerst) */
+  /** Einnahmen im Monat 'YYYY-MM' */
+  function incomeInMonth(monthKey) {
+    return U.sum(
+      state.finance.transactions
+        .filter(t => t.date.slice(0, 7) === monthKey && t.amount > 0)
+        .map(t => t.amount)
+    );
+  }
+
+  /** Schlaf der letzten Nacht (jüngster Eintrag) */
   function lastSleep() {
     if (!state.sleep.length) return null;
     return U.sortByDateDesc(state.sleep)[0];
+  }
+
+  /** Wochen-Statistik (aktuelle Woche Mo–heute) für das Dashboard */
+  function weekStats() {
+    const today = U.todayStr();
+    const start = U.startOfWeek(today);
+    const days = [];
+    for (let d = start; d <= today; d = U.addDays(d, 1)) days.push(d);
+
+    // Habits: erledigte Slots / mögliche Slots
+    let slots = 0, done = 0;
+    for (const d of days) {
+      for (const h of state.habits) {
+        if (!h.createdAt || h.createdAt <= d) {
+          slots++;
+          if (h.log[d]) done++;
+        }
+      }
+    }
+
+    const journalDays = days.filter(d => state.journal.some(j => j.date === d)).length;
+    const trackedDays = days.filter(d => (state.nutrition[d] || {}).entries && state.nutrition[d].entries.length).length;
+    const sleepEntries = state.sleep.filter(e => e.date >= start && e.date <= today);
+    const learnMinutes = U.sum(state.education.sessions.filter(x => x.date >= start && x.date <= today).map(x => x.minutes || 0));
+
+    return {
+      days: days.length,
+      workouts: workoutsThisWeek().length,
+      habitPct: slots ? done / slots : 0,
+      journalDays,
+      trackedDays,
+      sleepAvg: U.avg(sleepEntries.map(e => e.hours)),
+      learnMinutes
+    };
+  }
+
+  /** Anstehende Termine: Ziel-Deadlines + Prüfungen (nächste 60 Tage) */
+  function upcoming() {
+    const today = U.todayStr();
+    const items = [];
+    for (const g of state.goals) {
+      if (!g.done && g.deadline) {
+        const days = U.daysBetween(today, g.deadline);
+        if (days >= -7 && days <= 60) items.push({ type: 'goal', icon: '🎯', title: g.title, date: g.deadline, days });
+      }
+    }
+    for (const x of state.education.exams) {
+      const days = U.daysBetween(today, x.date);
+      if (days >= 0 && days <= 60 && (x.grade == null || isNaN(x.grade))) {
+        items.push({ type: 'exam', icon: '🎓', title: x.title, date: x.date, days });
+      }
+    }
+    return items.sort((a, b) => a.days - b.days).slice(0, 5);
   }
 
   /* ---------- XP / Level ---------- */
@@ -190,6 +265,8 @@ const Store = (() => {
     x += state.goals.filter(g => g.done).length * 150;
     x += state.education.notes.length * 15;
     x += state.education.exams.length * 40;
+    x += state.education.sessions.length * 15;
+    x += state.runs.length * 40;
     for (const h of state.habits) x += Object.keys(h.log).length * 8;
     for (const day of Object.values(state.nutrition)) {
       if (day.entries && day.entries.length) x += 12;
@@ -209,6 +286,7 @@ const Store = (() => {
   return {
     get, update, save, exportJSON, importJSON, reset,
     nutritionDay, nutritionTotals, latestWeight, habitStreak,
-    workoutsThisWeek, spentInMonth, lastSleep, xp, level
+    workoutsThisWeek, spentInMonth, incomeInMonth, lastSleep,
+    weekStats, upcoming, xp, level
   };
 })();

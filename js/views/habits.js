@@ -18,12 +18,31 @@ Views.habits = (() => {
     { icon: '🇬🇧', name: 'Englisch lernen' }
   ];
 
+  /** Erfolgsquote der letzten 30 Tage (ab Anlage des Habits) */
+  function rate30(h) {
+    const today = U.todayStr();
+    const since = h.createdAt && h.createdAt > U.addDays(today, -29) ? h.createdAt : U.addDays(today, -29);
+    let total = 0, done = 0;
+    for (let d = since; d <= today; d = U.addDays(d, 1)) {
+      total++;
+      if (h.log[d]) done++;
+    }
+    return total ? done / total : 0;
+  }
+
   function render(c) {
     const s = Store.get();
     const today = U.todayStr();
     const doneToday = s.habits.filter(h => h.log[today]).length;
     const bestStreak = Math.max(0, ...s.habits.map(maxStreak));
     const last7 = U.lastNDays(7);
+
+    // Perfekte Tage (letzte 30): alle aktiven Habits erledigt
+    let perfectDays = 0;
+    for (const d of U.lastNDays(30)) {
+      const active = s.habits.filter(h => !h.createdAt || h.createdAt <= d);
+      if (active.length && active.every(h => h.log[d])) perfectDays++;
+    }
 
     // Gesamt-Heatmap: Anteil erledigter Habits pro Tag
     const intensity = d => {
@@ -48,8 +67,9 @@ Views.habits = (() => {
           <span class="stat-value">🔥 ${bestStreak} <small>Tage</small></span>
         </div></div>
         <div class="card"><div class="stat">
-          <span class="stat-label">Aktive Habits</span>
-          <span class="stat-value">${s.habits.length}</span>
+          <span class="stat-label">Perfekte Tage (30 T.)</span>
+          <span class="stat-value">⭐ ${perfectDays}</span>
+          <span class="stat-sub">Tage, an denen alles erledigt war</span>
         </div></div>
       </div>
 
@@ -71,7 +91,10 @@ Views.habits = (() => {
             return `
               <div class="habit-row">
                 <button class="habit-check ${h.log[today] ? 'done' : ''}" data-habit="${h.id}" data-date="${today}" aria-label="Heute abhaken">✓</button>
-                <span class="habit-name ${h.log[today] ? 'done' : ''}">${U.esc(h.icon || '')} ${U.esc(h.name)}</span>
+                <div style="flex:1;min-width:0">
+                  <span class="habit-name ${h.log[today] ? 'done' : ''}" style="display:block">${U.esc(h.icon || '')} ${U.esc(h.name)}</span>
+                  <span class="muted" style="font-size:11.5px">Rekord: ${maxStreak(h)} · Quote: ${Math.round(rate30(h) * 100)} % (30 T.)</span>
+                </div>
                 ${streak > 0 ? `<span class="streak-flame">🔥 ${streak}</span>` : '<span class="muted" style="font-size:12px">Starte heute!</span>'}
                 <div style="display:flex;gap:4px;margin-left:8px">${week}</div>
                 <div class="li-actions" style="opacity:1">

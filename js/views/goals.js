@@ -15,8 +15,15 @@ Views.goals = (() => {
     const open = s.goals.filter(g => !g.done);
     const done = s.goals.filter(g => g.done);
 
-    const shortGoals = open.filter(g => g.type === 'short');
-    const longGoals = open.filter(g => g.type === 'long');
+    // Nach Deadline sortieren (ohne Deadline ans Ende)
+    const byDeadline = (a, b) => {
+      if (a.deadline && b.deadline) return a.deadline < b.deadline ? -1 : 1;
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return 0;
+    };
+    const shortGoals = open.filter(g => g.type === 'short').sort(byDeadline);
+    const longGoals = open.filter(g => g.type === 'long').sort(byDeadline);
 
     c.innerHTML = `
       <div class="grid grid-3">
@@ -72,6 +79,17 @@ Views.goals = (() => {
 
     c.querySelector('#addGoal').onclick = () => openGoalModal();
 
+    // Meilensteine abhaken
+    c.querySelectorAll('[data-ms]').forEach(b => b.onclick = () => {
+      const [goalId, msId] = b.dataset.ms.split('|');
+      Store.update(st => {
+        const g = st.goals.find(x => x.id === goalId);
+        const m = g && g.milestones.find(x => x.id === msId);
+        if (m) m.done = !m.done;
+      });
+      App.refresh();
+    });
+
     c.querySelectorAll('[data-progress]').forEach(b => b.onclick = () => {
       const g = Store.get().goals.find(x => x.id === b.dataset.progress);
       if (g) openProgressModal(g);
@@ -109,6 +127,15 @@ Views.goals = (() => {
       ? `${Math.round(pct * 100)}%`
       : `${U.fmtNum(g.current || 0)} / ${U.fmtNum(g.target)} ${U.esc(g.unit || '')}`;
 
+    const milestonesHtml = (g.milestones && g.milestones.length) ? `
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${g.milestones.map(m => `
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="habit-check ${m.done ? 'done' : ''}" style="width:20px;height:20px;font-size:10px" data-ms="${g.id}|${m.id}" title="Meilenstein abhaken">✓</button>
+            <span style="font-size:13px;${m.done ? 'text-decoration:line-through;color:var(--text-faint)' : ''}">${U.esc(m.text)}</span>
+          </div>`).join('')}
+      </div>` : '';
+
     return `
       <div class="list-item goal-card" style="flex-direction:column;align-items:stretch;gap:8px">
         <div class="goal-head">
@@ -125,6 +152,7 @@ Views.goals = (() => {
           <div class="bar mt-0"><i class="${pct >= 1 ? 'green' : ''}" style="width:${(pct * 100).toFixed(0)}%"></i></div>
           <div class="muted" style="margin-top:4px">${progressTxt}</div>
         </div>
+        ${milestonesHtml}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn small primary" data-progress="${g.id}">+ Fortschritt</button>
           <button class="btn small" data-done="${g.id}">✅ Erreicht</button>
@@ -150,6 +178,7 @@ Views.goals = (() => {
           ${UI.field('Einheit', UI.textInput('gUnit', g ? g.unit : '%', 'z. B. €, kg, Seiten'))}
           ${UI.field('Aktueller Stand', UI.numInput('gCurrent', g ? g.current : 0, '0'))}
         </div>
+        ${UI.field('Meilensteine (optional, einer pro Zeile)', UI.textarea('gMilestones', g && g.milestones ? g.milestones.map(m => m.text).join('\n') : '', 'z. B.\n500 € gespart\nDauerauftrag eingerichtet'))}
         <p class="muted" style="margin-top:0">Tipp: Mach dein Ziel messbar – „1.000 €" statt „mehr sparen".</p>
         ${UI.formActions(g ? 'Speichern' : 'Ziel anlegen')}
       </form>
@@ -158,6 +187,14 @@ Views.goals = (() => {
         const title = UI.val(b, 'gTitle');
         if (!title) { UI.toast('⚠️ Gib deinem Ziel einen Namen'); return; }
         const target = UI.numVal(b, 'gTarget');
+        // Meilensteine parsen, Häkchen bestehender Einträge (gleicher Text) behalten
+        const oldMs = (g && g.milestones) || [];
+        const milestones = UI.val(b, 'gMilestones').split('\n')
+          .map(t => t.trim()).filter(Boolean)
+          .map(text => {
+            const prev = oldMs.find(m => m.text === text);
+            return { id: prev ? prev.id : U.uid(), text, done: prev ? prev.done : false };
+          });
         const data = {
           id: g ? g.id : U.uid(),
           title,
@@ -167,6 +204,7 @@ Views.goals = (() => {
           target: isNaN(target) || target <= 0 ? 100 : target,
           unit: UI.val(b, 'gUnit') || '%',
           current: UI.numVal(b, 'gCurrent') || 0,
+          milestones,
           done: g ? g.done : false,
           doneAt: g ? g.doneAt : null,
           createdAt: g ? g.createdAt : U.todayStr()

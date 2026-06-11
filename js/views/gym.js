@@ -7,6 +7,13 @@ window.Views = window.Views || {};
 
 Views.gym = (() => {
 
+  let selectedExercise = null; // bleibt beim Neu-Rendern erhalten
+
+  /** Geschätztes 1RM nach Epley: kg × (1 + Wdh./30) */
+  function e1rm(kg, reps) {
+    return reps > 1 ? kg * (1 + reps / 30) : kg;
+  }
+
   function render(c) {
     const s = Store.get();
     const weight = Store.latestWeight();
@@ -42,6 +49,30 @@ Views.gym = (() => {
       .sort((a, b) => b[1].kg - a[1].kg)
       .slice(0, 6);
 
+    // Übungs-Fortschritt: bestes Satzgewicht je Workout-Datum für die gewählte Übung
+    const exerciseNames = Object.keys(prs).sort((a, b) => a.localeCompare(b));
+    if (!selectedExercise || !exerciseNames.includes(selectedExercise)) selectedExercise = exerciseNames[0] || null;
+    let progressPoints = [], bestE1rm = null;
+    if (selectedExercise) {
+      const byDate = [...s.workouts].sort((a, b) => a.date < b.date ? -1 : 1);
+      for (const w of byDate) {
+        let best = 0, bestSet = null;
+        for (const ex of w.exercises) {
+          if (ex.name !== selectedExercise) continue;
+          for (const set of ex.sets) {
+            if ((set.kg || 0) > best) { best = set.kg; bestSet = set; }
+          }
+        }
+        if (bestSet) {
+          progressPoints.push({ x: w.date.slice(8) + '.' + w.date.slice(5, 7), y: best });
+          const est = e1rm(bestSet.kg, bestSet.reps || 1);
+          if (bestE1rm == null || est > bestE1rm) bestE1rm = est;
+        }
+      }
+      progressPoints = progressPoints.slice(-20);
+    }
+
+    const weightLog = U.sortByDateDesc(s.weights).slice(0, 6);
     const measurements = U.sortByDateDesc(s.measurements);
     const M_FIELDS = [['chest', 'Brust'], ['waist', 'Taille'], ['hips', 'Hüfte'], ['biceps', 'Bizeps'], ['thigh', 'Oberschenkel']];
 
@@ -70,6 +101,7 @@ Views.gym = (() => {
 
       <div class="quick-actions">
         <button class="btn primary" id="addWorkout">💪 Workout eintragen</button>
+        ${workouts.length ? `<button class="btn" id="repeatWorkout">🔁 Letztes wiederholen</button>` : ''}
         <button class="btn" id="addWeight">⚖️ Gewicht eintragen</button>
         <button class="btn" id="addMeasure">📏 Maße eintragen</button>
       </div>
@@ -83,6 +115,26 @@ Views.gym = (() => {
           <h3 class="card-title">📊 Trainingsvolumen pro Woche (Tonnen)</h3>
           ${hasVol ? `<div class="chart-wrap">${Charts.bars(volBars, { color: Charts.COLORS.accent })}</div>`
                    : `<div class="empty"><span class="empty-icon">🏋️</span>Trag dein erstes Workout ein!</div>`}
+        </div>
+      </div>
+
+      <div class="grid grid-2 section-gap">
+        <div class="card">
+          <h3 class="card-title">📈 Übungs-Fortschritt
+            ${exerciseNames.length ? `<select id="exSelect" style="width:auto;padding:4px 30px 4px 10px;font-size:13px">${exerciseNames.map(n => `<option ${n === selectedExercise ? 'selected' : ''}>${U.esc(n)}</option>`).join('')}</select>` : ''}
+          </h3>
+          ${progressPoints.length
+            ? `<div class="chart-wrap">${Charts.line(progressPoints, { color: Charts.COLORS.green, height: 180 })}</div>
+               ${bestE1rm ? `<div class="muted" style="margin-top:6px">Geschätztes Maximum (1RM): <b style="color:var(--text)">${U.fmtNum(bestE1rm, 0)} kg</b></div>` : ''}`
+            : `<div class="empty"><span class="empty-icon">📈</span>Nach deinem ersten Workout siehst du hier deine Progression pro Übung.</div>`}
+        </div>
+        <div class="card">
+          <h3 class="card-title">⚖️ Gewichts-Einträge</h3>
+          ${weightLog.length ? `<div class="list">` + weightLog.map(w => `
+            <div class="list-item">
+              <div class="li-main"><div class="li-title">${U.fmtNum(w.kg)} kg</div><div class="li-sub">${U.fmtDateRel(w.date)}</div></div>
+              <div class="li-actions"><button class="icon-btn danger" data-del-weight="${w.date}" title="Löschen">🗑</button></div>
+            </div>`).join('') + `</div>` : `<div class="empty"><span class="empty-icon">⚖️</span>Wieg dich am besten immer morgens – ein Eintrag pro Tag reicht.</div>`}
         </div>
       </div>
 
@@ -122,6 +174,23 @@ Views.gym = (() => {
     c.querySelector('#addWorkout').onclick = () => openWorkoutModal();
     c.querySelector('#addWeight').onclick = openWeightModal;
     c.querySelector('#addMeasure').onclick = openMeasureModal;
+
+    const repeatBtn = c.querySelector('#repeatWorkout');
+    if (repeatBtn) repeatBtn.onclick = () => {
+      const last = U.sortByDateDesc(Store.get().workouts)[0];
+      if (last) openWorkoutModal(null, {
+        name: last.name,
+        exercises: JSON.parse(JSON.stringify(last.exercises))
+      });
+    };
+
+    const exSelect = c.querySelector('#exSelect');
+    if (exSelect) exSelect.onchange = () => { selectedExercise = exSelect.value; App.refresh(); };
+
+    c.querySelectorAll('[data-del-weight]').forEach(b => b.onclick = () => {
+      Store.update(st => st.weights = st.weights.filter(x => x.date !== b.dataset.delWeight));
+      App.refresh();
+    });
 
     c.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
       const w = Store.get().workouts.find(x => x.id === b.dataset.edit);
@@ -188,17 +257,22 @@ Views.gym = (() => {
     return [...names];
   }
 
-  function openWorkoutModal(existing) {
+  /**
+   * Workout-Modal. existing = bearbeiten; prefill = neues Workout mit Vorlage
+   * (z. B. „Letztes wiederholen“: Übungen & Gewichte vorausgefüllt, Datum heute).
+   */
+  function openWorkoutModal(existing, prefill) {
     const w = existing || null;
+    const tpl = !w && prefill ? prefill : null;
     UI.openModal(w ? 'Workout bearbeiten' : 'Workout eintragen', `
       <form>
         <div class="form-row">
-          ${UI.field('Name', UI.textInput('woName', w ? w.name : '', 'z. B. Push Day'))}
+          ${UI.field('Name', UI.textInput('woName', w ? w.name : (tpl ? tpl.name : ''), 'z. B. Push Day'))}
           ${UI.field('Datum', UI.dateInput('woDate', w ? w.date : null))}
         </div>
         ${UI.field('Dauer (Minuten, optional)', UI.numInput('woDuration', w ? w.duration : '', 'z. B. 75', '1'))}
         <datalist id="exNames">${knownExerciseNames().map(n => `<option value="${U.esc(n)}">`).join('')}</datalist>
-        <div id="exList">${(w ? w.exercises : [null]).map(ex => exerciseBlockHtml(ex)).join('')}</div>
+        <div id="exList">${(w ? w.exercises : (tpl ? tpl.exercises : [null])).map(ex => exerciseBlockHtml(ex)).join('')}</div>
         <button type="button" class="btn small" id="addExercise">+ Übung</button>
         ${UI.field('Notizen (optional)', UI.textarea('woNotes', w ? w.notes : '', 'Wie lief es?'))}
         ${UI.formActions(w ? 'Speichern' : 'Workout speichern')}

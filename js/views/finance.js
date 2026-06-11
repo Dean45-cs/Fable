@@ -28,10 +28,19 @@ Views.finance = (() => {
     return amount > 0 ? 'Gehalt' : 'Sonstiges';
   }
 
+  let viewMonth = null; // null = aktueller Monat
+
+  function monthLabel(mk) {
+    return U.MONTHS[Number(mk.slice(5, 7)) - 1] + ' ' + mk.slice(0, 4);
+  }
+
   function render(c) {
     const s = Store.get();
     const f = s.finance;
-    const mk = U.monthKey(U.todayStr());
+    const curMk = U.monthKey(U.todayStr());
+    const mk = viewMonth || curMk;
+    // Alle Monate mit Buchungen (+ aktueller), neueste zuerst
+    const months = [...new Set([curMk, ...f.transactions.map(t => t.date.slice(0, 7))])].sort().reverse();
     const monthTx = f.transactions.filter(t => t.date.slice(0, 7) === mk);
     const spent = U.sum(monthTx.filter(t => t.amount < 0).map(t => -t.amount));
     const income = U.sum(monthTx.filter(t => t.amount > 0).map(t => t.amount));
@@ -61,7 +70,9 @@ Views.finance = (() => {
     }
     const hasMonths = monthBars.some(b => b.y > 0);
 
-    const txSorted = U.sortByDateDesc(f.transactions).slice(0, 25);
+    const txSorted = U.sortByDateDesc(monthTx).slice(0, 40);
+    const mShort = U.MONTHS[Number(mk.slice(5, 7)) - 1].slice(0, 3) + '.';
+    const cashflow = income - spent;
 
     c.innerHTML = `
       <div class="grid grid-4">
@@ -71,11 +82,12 @@ Views.finance = (() => {
           <span class="stat-sub">${f.balanceDate ? 'Stand ' + U.fmtDateRel(f.balanceDate) : 'Noch nicht gesetzt'}</span>
         </div></div>
         <div class="card"><div class="stat">
-          <span class="stat-label">Einnahmen ${U.MONTHS[now.getMonth()].slice(0, 3)}.</span>
+          <span class="stat-label">Einnahmen ${mShort}</span>
           <span class="stat-value" style="color:var(--green)">+${U.fmtMoney(income)}</span>
+          <span class="stat-sub" style="color:${cashflow >= 0 ? 'var(--green)' : 'var(--red)'}">Saldo: ${cashflow >= 0 ? '+' : ''}${U.fmtMoney(cashflow)}</span>
         </div></div>
         <div class="card"><div class="stat">
-          <span class="stat-label">Ausgaben ${U.MONTHS[now.getMonth()].slice(0, 3)}.</span>
+          <span class="stat-label">Ausgaben ${mShort}</span>
           <span class="stat-value" style="color:var(--red)">−${U.fmtMoney(spent)}</span>
         </div></div>
         <div class="card"><div class="stat">
@@ -94,8 +106,8 @@ Views.finance = (() => {
 
       <div class="grid grid-2 section-gap">
         <div class="card">
-          <h3 class="card-title">📊 Ausgaben nach Kategorie (${U.MONTHS[now.getMonth()]})</h3>
-          ${catItems.length ? Charts.hbars(catItems, { fmt: U.fmtMoney }) : `<div class="empty"><span class="empty-icon">📊</span>Noch keine Ausgaben diesen Monat.</div>`}
+          <h3 class="card-title">📊 Ausgaben nach Kategorie (${monthLabel(mk)})</h3>
+          ${catItems.length ? Charts.hbars(catItems, { fmt: U.fmtMoney }) : `<div class="empty"><span class="empty-icon">📊</span>Keine Ausgaben in diesem Monat.</div>`}
         </div>
         <div class="card">
           <h3 class="card-title">📅 Ausgaben pro Monat (€)</h3>
@@ -105,20 +117,30 @@ Views.finance = (() => {
       </div>
 
       <div class="card section-gap">
-        <h3 class="card-title">🧾 Letzte Buchungen <span class="muted">${f.transactions.length} gesamt</span></h3>
+        <h3 class="card-title">🧾 Buchungen
+          <span style="display:flex;align-items:center;gap:8px">
+            <span class="muted">${monthTx.length} im Monat · ${f.transactions.length} gesamt</span>
+            <select id="monthSelect" style="width:auto;padding:4px 30px 4px 10px;font-size:13px">
+              ${months.map(m => `<option value="${m}" ${m === mk ? 'selected' : ''}>${monthLabel(m)}</option>`).join('')}
+            </select>
+          </span>
+        </h3>
         <div class="list">
           ${txSorted.length ? txSorted.map(t => `
             <div class="list-item">
               <span style="font-size:18px">${t.amount >= 0 ? '🟢' : '🔴'}</span>
               <div class="li-main">
                 <div class="li-title">${U.esc(t.note || t.category)}</div>
-                <div class="li-sub">${U.fmtDateRel(t.date)} · ${U.esc(t.category)}</div>
+                <div class="li-sub">${U.fmtDateRel(t.date)} · ${U.esc(t.category)}${t.importKey ? ' · 📥 Import' : ''}</div>
               </div>
               <div class="li-end" style="font-weight:700;color:${t.amount >= 0 ? 'var(--green)' : 'var(--text)'}">
                 ${t.amount >= 0 ? '+' : '−'}${U.fmtMoney(Math.abs(t.amount)).replace('−', '')}
               </div>
-              <div class="li-actions"><button class="icon-btn danger" data-del="${t.id}" title="Löschen">🗑</button></div>
-            </div>`).join('') : `<div class="empty"><span class="empty-icon">🧾</span>Noch keine Buchungen. Trag deine erste Ausgabe ein oder importiere dein Revolut-CSV.</div>`}
+              <div class="li-actions">
+                <button class="icon-btn" data-edit="${t.id}" title="Bearbeiten">✏️</button>
+                <button class="icon-btn danger" data-del="${t.id}" title="Löschen">🗑</button>
+              </div>
+            </div>`).join('') : `<div class="empty"><span class="empty-icon">🧾</span>Keine Buchungen in diesem Monat. Trag eine Ausgabe ein oder importiere dein Revolut-CSV.</div>`}
         </div>
       </div>
 
@@ -136,51 +158,76 @@ Views.finance = (() => {
     c.querySelector('#addTx').onclick = () => openTxModal();
     c.querySelector('#setBalance').onclick = openBalanceModal;
     c.querySelector('#importCsv').onclick = openImportModal;
+    c.querySelector('#monthSelect').onchange = e => { viewMonth = e.target.value; App.refresh(); };
+    c.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+      const t = Store.get().finance.transactions.find(x => x.id === b.dataset.edit);
+      if (t) openTxModal(t);
+    });
     c.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
       UI.confirmDlg('Buchung löschen?', () => {
-        Store.update(st => st.finance.transactions = st.finance.transactions.filter(x => x.id !== b.dataset.del));
+        Store.update(st => {
+          const t = st.finance.transactions.find(x => x.id === b.dataset.del);
+          // Manuell gebuchte Beträge aus dem Kontostand zurückrechnen
+          // (Importierte nicht – deren Stand kommt aus dem Banken-CSV)
+          if (t && !t.importKey && st.finance.balance != null) st.finance.balance -= t.amount;
+          st.finance.transactions = st.finance.transactions.filter(x => x.id !== b.dataset.del);
+        });
         App.refresh();
       });
     });
   }
 
-  /* ---------- Buchung anlegen ---------- */
+  /* ---------- Buchung anlegen / bearbeiten ---------- */
 
-  function openTxModal() {
-    UI.openModal('Buchung eintragen', `
+  function openTxModal(existing) {
+    const t = existing || null;
+    UI.openModal(t ? 'Buchung bearbeiten' : 'Buchung eintragen', `
       <form>
         <div class="form-row">
-          ${UI.field('Art', UI.select('txType', [{ value: 'out', label: '🔴 Ausgabe' }, { value: 'in', label: '🟢 Einnahme' }], 'out'))}
-          ${UI.field('Betrag (€)', UI.numInput('txAmount', '', 'z. B. 12,99'))}
+          ${UI.field('Art', UI.select('txType', [{ value: 'out', label: '🔴 Ausgabe' }, { value: 'in', label: '🟢 Einnahme' }], t && t.amount > 0 ? 'in' : 'out'))}
+          ${UI.field('Betrag (€)', UI.numInput('txAmount', t ? Math.abs(t.amount) : '', 'z. B. 12,99'))}
         </div>
         <div class="form-row">
-          ${UI.field('Kategorie', UI.select('txCat', CATEGORIES, 'Lebensmittel'))}
-          ${UI.field('Datum', UI.dateInput('txDate'))}
+          ${UI.field('Kategorie', UI.select('txCat', CATEGORIES, t ? t.category : 'Lebensmittel'))}
+          ${UI.field('Datum', UI.dateInput('txDate', t ? t.date : null))}
         </div>
-        ${UI.field('Beschreibung (optional)', UI.textInput('txNote', '', 'z. B. Wocheneinkauf REWE'))}
-        ${UI.formActions('Buchen')}
+        ${UI.field('Beschreibung (optional)', UI.textInput('txNote', t ? t.note : '', 'z. B. Wocheneinkauf REWE'))}
+        ${UI.formActions(t ? 'Speichern' : 'Buchen')}
       </form>
     `, body => {
       UI.bindForm(body, b => {
         const amt = UI.numVal(b, 'txAmount');
         if (isNaN(amt) || amt <= 0) { UI.toast('⚠️ Bitte gültigen Betrag eingeben'); return; }
         const sign = UI.val(b, 'txType') === 'in' ? 1 : -1;
+        const newAmount = sign * amt;
         Store.update(st => {
-          st.finance.transactions.push({
-            id: U.uid(),
-            date: UI.val(b, 'txDate') || U.todayStr(),
-            amount: sign * amt,
-            category: UI.val(b, 'txCat'),
-            note: UI.val(b, 'txNote')
-          });
-          // Kontostand mitführen, wenn gesetzt
-          if (st.finance.balance != null) {
-            st.finance.balance += sign * amt;
-            st.finance.balanceDate = U.todayStr();
+          if (t) {
+            const x = st.finance.transactions.find(y => y.id === t.id);
+            if (x) {
+              // Kontostand um die Differenz korrigieren (nur manuelle Buchungen)
+              if (!x.importKey && st.finance.balance != null) st.finance.balance += newAmount - x.amount;
+              x.amount = newAmount;
+              x.category = UI.val(b, 'txCat');
+              x.date = UI.val(b, 'txDate') || x.date;
+              x.note = UI.val(b, 'txNote');
+            }
+          } else {
+            st.finance.transactions.push({
+              id: U.uid(),
+              date: UI.val(b, 'txDate') || U.todayStr(),
+              amount: newAmount,
+              category: UI.val(b, 'txCat'),
+              note: UI.val(b, 'txNote')
+            });
+            // Kontostand mitführen, wenn gesetzt
+            if (st.finance.balance != null) {
+              st.finance.balance += newAmount;
+              st.finance.balanceDate = U.todayStr();
+            }
           }
         });
         UI.closeModal();
-        UI.toast('💶 Buchung gespeichert', 'success');
+        UI.toast(t ? '✅ Buchung aktualisiert' : '💶 Buchung gespeichert', 'success');
         App.refresh();
       });
     });

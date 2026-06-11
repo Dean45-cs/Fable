@@ -19,12 +19,23 @@ Views.nutrition = (() => {
     { name: 'Vollkornbrot (2 Scheiben)', kcal: 180, protein: 7 }
   ];
 
+  let viewDate = null; // null = heute (Navigation über ‹ › im Tages-Card)
+
   function render(c) {
     const s = Store.get();
     const p = s.profile;
     const today = U.todayStr();
-    const day = Store.nutritionDay(today);
-    const tot = Store.nutritionTotals(today);
+    const date = viewDate || today;
+    const isToday = date === today;
+    const day = Store.nutritionDay(date);
+    const tot = Store.nutritionTotals(date);
+
+    // Ø der letzten 7 Tage (nur Tage mit Einträgen)
+    const week7 = U.lastNDays(7).map(d => Store.nutritionTotals(d)).filter(t => t.kcal > 0);
+    const avgKcal = U.avg(week7.map(t => t.kcal));
+
+    const favorites = s.foodFavorites || [];
+    const quickItems = [...favorites, ...QUICK_FOODS].slice(0, 4);
 
     const kcalPct = p.kcalGoal ? U.clamp(tot.kcal / p.kcalGoal, 0, 1) : 0;
     const protPct = p.proteinGoal ? U.clamp(tot.protein / p.proteinGoal, 0, 1) : 0;
@@ -49,7 +60,7 @@ Views.nutrition = (() => {
           <span class="stat-label">🔥 Kalorien</span>
           <span class="stat-value">${U.fmtNum(tot.kcal, 0)} <small>/ ${U.fmtNum(p.kcalGoal, 0)} kcal</small></span>
           <div class="bar"><i class="${kcalPct >= 1 ? 'orange' : ''}" style="width:${(kcalPct * 100).toFixed(0)}%"></i></div>
-          <span class="stat-sub">${tot.kcal <= p.kcalGoal ? `Noch ${U.fmtNum(p.kcalGoal - tot.kcal, 0)} kcal übrig` : `${U.fmtNum(tot.kcal - p.kcalGoal, 0)} kcal über Ziel`}</span>
+          <span class="stat-sub">${tot.kcal <= p.kcalGoal ? `Noch ${U.fmtNum(p.kcalGoal - tot.kcal, 0)} kcal übrig` : `${U.fmtNum(tot.kcal - p.kcalGoal, 0)} kcal über Ziel`}${!isNaN(avgKcal) ? ` · Ø 7 Tage: ${U.fmtNum(avgKcal, 0)}` : ''}</span>
         </div></div>
         <div class="card"><div class="stat">
           <span class="stat-label">🥩 Protein</span>
@@ -72,12 +83,18 @@ Views.nutrition = (() => {
 
       <div class="quick-actions">
         <button class="btn primary" id="addEntry">🍎 Mahlzeit eintragen</button>
-        ${QUICK_FOODS.slice(0, 4).map((f, i) => `<button class="btn small" data-quick="${i}">+ ${U.esc(f.name)}</button>`).join('')}
+        ${quickItems.map((f, i) => `<button class="btn small" data-quick="${i}">${favorites.includes(f) ? '⭐ ' : '+ '}${U.esc(f.name)}</button>`).join('')}
       </div>
 
       <div class="grid grid-2 section-gap">
         <div class="card">
-          <h3 class="card-title">🍽️ Heute gegessen <span class="muted">${day.entries.length} Einträge</span></h3>
+          <h3 class="card-title">🍽️ ${isToday ? 'Heute' : U.esc(U.fmtDateRel(date))} gegessen
+            <span style="display:flex;align-items:center;gap:4px">
+              <button class="icon-btn" id="dayPrev" title="Vorheriger Tag">‹</button>
+              ${isToday ? '' : '<button class="link-btn" id="dayToday">Heute</button>'}
+              <button class="icon-btn" id="dayNext" title="Nächster Tag" ${isToday ? 'disabled style="opacity:.3"' : ''}>›</button>
+            </span>
+          </h3>
           <div class="list">
             ${day.entries.length ? day.entries.map(e => `
               <div class="list-item">
@@ -103,18 +120,28 @@ Views.nutrition = (() => {
     `;
 
     c.querySelector('#addEntry').onclick = () => openEntryModal();
+    c.querySelector('#dayPrev').onclick = () => { viewDate = U.addDays(date, -1); App.refresh(); };
+    c.querySelector('#dayNext').onclick = () => {
+      if (isToday) return;
+      const next = U.addDays(date, 1);
+      viewDate = next === today ? null : next;
+      App.refresh();
+    };
+    const todayBtn = c.querySelector('#dayToday');
+    if (todayBtn) todayBtn.onclick = () => { viewDate = null; App.refresh(); };
+
     c.querySelectorAll('[data-water]').forEach(b => b.onclick = () => {
-      addWater(Number(b.dataset.water));
+      addWater(Number(b.dataset.water), date);
       App.refresh();
     });
     c.querySelectorAll('[data-quick]').forEach(b => b.onclick = () => {
-      const f = QUICK_FOODS[Number(b.dataset.quick)];
-      addEntry(f.name, f.kcal, f.protein);
+      const f = quickItems[Number(b.dataset.quick)];
+      addEntry(f.name, f.kcal, f.protein, date);
       App.refresh();
     });
     c.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
       Store.update(st => {
-        const d = st.nutrition[today];
+        const d = st.nutrition[date];
         if (d) d.entries = d.entries.filter(e => e.id !== b.dataset.del);
       });
       App.refresh();
@@ -122,51 +149,73 @@ Views.nutrition = (() => {
   }
 
   /** Wasser hinzufügen (ml, kann negativ sein) */
-  function addWater(ml) {
-    const today = U.todayStr();
+  function addWater(ml, dateStr) {
+    const d = dateStr || U.todayStr();
     Store.update(st => {
-      if (!st.nutrition[today]) st.nutrition[today] = { water: 0, entries: [] };
-      st.nutrition[today].water = Math.max(0, (st.nutrition[today].water || 0) + ml);
+      if (!st.nutrition[d]) st.nutrition[d] = { water: 0, entries: [] };
+      st.nutrition[d].water = Math.max(0, (st.nutrition[d].water || 0) + ml);
     });
     if (ml > 0) UI.toast(`💧 +${ml} ml`, 'success');
   }
 
-  function addEntry(name, kcal, protein) {
-    const today = U.todayStr();
+  function addEntry(name, kcal, protein, dateStr) {
+    const d = dateStr || U.todayStr();
     Store.update(st => {
-      if (!st.nutrition[today]) st.nutrition[today] = { water: 0, entries: [] };
-      st.nutrition[today].entries.push({ id: U.uid(), name, kcal: kcal || 0, protein: protein || 0 });
+      if (!st.nutrition[d]) st.nutrition[d] = { water: 0, entries: [] };
+      st.nutrition[d].entries.push({ id: U.uid(), name, kcal: kcal || 0, protein: protein || 0 });
     });
     UI.toast(`🍎 ${U.esc(name)} eingetragen`, 'success');
   }
 
   function openEntryModal() {
-    UI.openModal('Mahlzeit eintragen', `
+    const date = viewDate || U.todayStr();
+    const favorites = Store.get().foodFavorites || [];
+    const all = [...favorites.map(f => ({ ...f, fav: true })), ...QUICK_FOODS];
+    UI.openModal('Mahlzeit eintragen' + (date !== U.todayStr() ? ` (${U.fmtDateRel(date)})` : ''), `
       <form>
         ${UI.field('Was hast du gegessen?', UI.textInput('nName', '', 'z. B. Hähnchen mit Reis'))}
         <div class="form-row">
           ${UI.field('Kalorien (kcal)', UI.numInput('nKcal', '', 'z. B. 650'))}
           ${UI.field('Protein (g)', UI.numInput('nProtein', '', 'z. B. 45'))}
         </div>
-        <div class="muted" style="margin-bottom:8px">Schnellauswahl:</div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer">
+          <input type="checkbox" id="nFav" style="width:auto"> <span class="muted">⭐ Als Favorit merken</span>
+        </label>
+        <div class="muted" style="margin-bottom:8px">${favorites.length ? 'Deine Favoriten & Schnellauswahl:' : 'Schnellauswahl:'}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-          ${QUICK_FOODS.map((f, i) => `<button type="button" class="btn small" data-qf="${i}">${U.esc(f.name)}</button>`).join('')}
+          ${all.map((f, i) => `<span style="display:inline-flex;align-items:center">
+            <button type="button" class="btn small" data-qf="${i}">${f.fav ? '⭐ ' : ''}${U.esc(f.name)}</button>
+            ${f.fav ? `<button type="button" class="icon-btn danger" data-unfav="${f.id}" title="Favorit entfernen" style="width:22px;height:22px;font-size:11px">✕</button>` : ''}
+          </span>`).join('')}
         </div>
         ${UI.formActions('Eintragen')}
       </form>
     `, body => {
       body.querySelectorAll('[data-qf]').forEach(b => b.onclick = () => {
-        const f = QUICK_FOODS[Number(b.dataset.qf)];
+        const f = all[Number(b.dataset.qf)];
         body.querySelector('#nName').value = f.name;
         body.querySelector('#nKcal').value = f.kcal;
         body.querySelector('#nProtein').value = f.protein;
+      });
+      body.querySelectorAll('[data-unfav]').forEach(b => b.onclick = () => {
+        Store.update(st => st.foodFavorites = st.foodFavorites.filter(f => f.id !== b.dataset.unfav));
+        b.parentElement.remove();
+        UI.toast('⭐ Favorit entfernt');
       });
       UI.bindForm(body, b => {
         const name = UI.val(b, 'nName');
         const kcal = UI.numVal(b, 'nKcal');
         if (!name) { UI.toast('⚠️ Was hast du gegessen?'); return; }
         if (isNaN(kcal) || kcal < 0) { UI.toast('⚠️ Bitte Kalorien angeben'); return; }
-        addEntry(name, kcal, UI.numVal(b, 'nProtein') || 0);
+        const protein = UI.numVal(b, 'nProtein') || 0;
+        if (b.querySelector('#nFav').checked) {
+          Store.update(st => {
+            if (!st.foodFavorites.some(f => f.name === name)) {
+              st.foodFavorites.push({ id: U.uid(), name, kcal, protein });
+            }
+          });
+        }
+        addEntry(name, kcal, protein, date);
         UI.closeModal();
         App.refresh();
       });
