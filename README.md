@@ -30,13 +30,14 @@ Morgens draufschauen – und du weißt sofort, wo du stehst.
 | 😴 **Schlaf** | Einschlaf-/Aufwachzeit, Dauer, Qualität und **Ø Bettzeit** – mit 14-Nächte-Übersicht. |
 | 🔁 **Habits** | Tägliche Gewohnheiten abhaken, **Streaks** 🔥, Erfolgsquote & Rekord pro Habit, **perfekte Tage** und 16-Wochen-Heatmap. |
 | 📓 **Tagebuch** | Einträge mit Stimmung (😞–🤩), Highlight, **Dankbarkeit**, Volltextsuche und „Vor einem Monat"-Rückblick. |
-| 🎓 **Ausbildung** | Lernthemen mit Fortschritt, **Lernzeit-Tracking** mit Wochen-Chart, durchsuchbare Notizen, Projekte und Prüfungen mit Notenschnitt. |
+| 🎓 **Schule** | Dein kompletter Schulalltag in einem Bereich – mit Tabs für alles: **Stundenplan mit Blockwochen** (zeigt automatisch, ob du in der Berufsschule oder im Betrieb bist und welche Stunde gerade läuft), **Fächer/Lernfelder** (Lehrer, Raum, Farbe, Sicherheits-Fortschritt), **Noten mit gewichtetem Schnitt** pro Fach, **Prüfungstermine** mit Countdown, **Markdown-Notizen pro Fach** und **Lernzeit-Tracking**. Alles zum Anlegen, Bearbeiten und Löschen. |
 | 📂 **Obsidian** | Verbindet deinen lokalen **Obsidian-Schulordner** (.md-Dateien): Volltextsuche nach **Themen, Lernfeldern & Lehrern**, Tag-Filter, schöne Markdown-Anzeige inkl. [[Wikilinks]] und Bearbeiten direkt in der App. |
 | 🤖 **KI-Coach** | Ein KI-Agent (Claude), der **einmal über alles rübergeht**: Komplett-Analyse mit konkreten Empfehlungen, automatische **Kategorisierung deiner Finanzbuchungen** und Auswertung deiner Schulnotizen inkl. **Lernplan**. |
 
 ### ⚡ Level-System
 
-Für alles, was dich weiterbringt, gibt's XP: Workouts (+50), Tagebuch (+20), Habits (+8),
+Für alles, was dich weiterbringt, gibt's XP: Workouts (+50), Läufe (+40), Prüfungen (+40),
+Noten (+20), Tagebuch (+20), Lernzeit (+15), Notizen (+15), Habits (+8),
 Ernährungstage (+12), erreichte Ziele (+150) … Dein Level siehst du oben rechts –
 vom **Frischling** bis zur **Legende**.
 

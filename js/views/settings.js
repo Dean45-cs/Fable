@@ -48,8 +48,9 @@ Views.settings = (() => {
               </div>
             </div>
             <p class="muted" style="margin-bottom:0">
-              XP gibt's für alles, was dich weiterbringt: Workouts (+50), Läufe (+40), Tagebuch (+20),
-              Lernzeit (+15), Habits (+8), Ernährungstage (+12), Schlaf & Gewicht (+10), erreichte Ziele (+150).
+              XP gibt's für alles, was dich weiterbringt: Workouts (+50), Läufe (+40), Prüfungen (+40),
+              Tagebuch (+20), Noten (+20), Lernzeit (+15), Notizen (+15), Habits (+8),
+              Ernährungstage (+12), Schlaf & Gewicht (+10), erreichte Ziele (+150).
             </p>
           </div>
 

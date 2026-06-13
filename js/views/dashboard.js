@@ -178,6 +178,8 @@ Views.dashboard = (() => {
         </div>
       </div>
 
+      ${schoolCard()}
+
       <div class="grid grid-3 section-gap">
         <div class="card">
           <h3 class="card-title">✅ Habits heute <span class="pill ${habitsDone === s.habits.length && s.habits.length ? 'green' : 'gray'}">${habitsDone}/${s.habits.length}</span></h3>
@@ -275,6 +277,59 @@ Views.dashboard = (() => {
     c.querySelectorAll('[data-go]').forEach(btn => {
       btn.onclick = () => App.go(btn.dataset.go);
     });
+  }
+
+  /** Kompakte Schul-Karte fürs Dashboard (Blockwoche, Note, nächste Prüfung) */
+  function schoolCard() {
+    const today = U.todayStr();
+    const e = Store.get().education;
+    const block = Store.blockOn(today);
+    const nb = Store.nextBlock(today);
+    const avg = Store.overallGradeAvg();
+    const nextExam = e.exams
+      .filter(x => x.date >= today && (x.grade == null || isNaN(x.grade)))
+      .sort((a, b) => a.date < b.date ? -1 : 1)[0];
+    const gradeColor = isNaN(avg) ? 'var(--text)' : avg <= 2 ? 'var(--green)' : avg <= 3.5 ? 'var(--orange)' : 'var(--red)';
+
+    let statusVal, statusSub, statusIcon;
+    if (block) {
+      const wd = new Date().getDay();
+      const periods = (wd >= 1 && wd <= 5) ? Store.timetableForDay(wd) : [];
+      statusIcon = 'building';
+      statusVal = 'Blockwoche';
+      statusSub = (wd >= 1 && wd <= 5) ? `${periods.length} ${periods.length === 1 ? 'Stunde' : 'Stunden'} heute` : 'Wochenende';
+    } else if (nb) {
+      const days = U.daysBetween(today, nb.start);
+      statusIcon = 'briefcase';
+      statusVal = 'Im Betrieb';
+      statusSub = days === 0 ? 'Schule startet heute' : `Schule in ${days} ${days === 1 ? 'Tag' : 'Tagen'}`;
+    } else {
+      statusIcon = 'building';
+      statusVal = '–';
+      statusSub = 'Keine Blockwoche';
+    }
+
+    return `
+      <div class="card section-gap">
+        <h3 class="card-title">Schule <button class="link-btn" data-go="education">Öffnen →</button></h3>
+        <div class="grid grid-3">
+          <div class="stat">
+            <span class="stat-label">${Icon(statusIcon, 15)} Status</span>
+            <span class="stat-value" style="font-size:19px">${statusVal}</span>
+            <span class="stat-sub">${U.esc(statusSub)}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">${Icon('cap', 15)} Ø Note</span>
+            <span class="stat-value" style="color:${gradeColor}">${isNaN(avg) ? '–' : U.fmtNum(avg, 2)}</span>
+            <span class="stat-sub">${Store.allGrades().length} Noten</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">${Icon('clipboard', 15)} Nächste Prüfung</span>
+            <span class="stat-value" style="font-size:19px">${nextExam ? U.daysBetween(today, nextExam.date) + ' <small>Tage</small>' : '–'}</span>
+            <span class="stat-sub">${nextExam ? U.esc(nextExam.title) : 'Keine geplant'}</span>
+          </div>
+        </div>
+      </div>`;
   }
 
   /** Fortschritt eines Ziels 0..1 (geteilt mit goals-View).
