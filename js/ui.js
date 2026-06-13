@@ -44,8 +44,12 @@ const UI = (() => {
 
   /** Erfolg + XP-Feedback */
   function reward(msg, xpAmount) {
-    toast('✅ ' + msg, 'success');
-    if (xpAmount) setTimeout(() => toast(`⚡ +${xpAmount} XP`, 'xp'), 250);
+    const check = typeof Icon === 'function' ? `<span style="color:var(--green);display:inline-flex">${Icon('checkCircle', 16)}</span>` : '✅';
+    toast(`${check} ${msg}`, 'success');
+    if (xpAmount) {
+      const spark = typeof Icon === 'function' ? `<span style="color:#c0bfff;display:inline-flex">${Icon('sparkles', 16)}</span>` : '⚡';
+      setTimeout(() => toast(`${spark} +${xpAmount} XP`, 'xp'), 250);
+    }
   }
 
   /** Bestätigungs-Dialog */

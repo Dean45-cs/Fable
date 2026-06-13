@@ -114,9 +114,14 @@ Views.ai = (() => {
         text: (j.text || '').slice(0, 250), highlight: j.highlight
       })),
       ausbildung: {
-        lernthemen: s.education.topics,
+        notenschnitt: (() => { const a = Store.overallGradeAvg(); return isNaN(a) ? null : Math.round(a * 100) / 100; })(),
+        faecher: s.education.subjects.map(f => {
+          const a = Store.subjectAvg(f.id);
+          return { name: f.name, sicherheit: (f.progress || 0) + '%', schnitt: isNaN(a) ? null : Math.round(a * 10) / 10 };
+        }),
         pruefungen: s.education.exams,
         projekte: s.education.projects,
+        lernthemen: s.education.topics,
         notizenAnzahl: s.education.notes.length
       }
     };

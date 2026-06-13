@@ -883,6 +883,166 @@ kbd {
 .md mark { background: rgba(255, 214, 10, .3); color: var(--text); border-radius: 3px; padding: 0 2px; }
 .md table.data { margin: 0 0 12px; }
 
+/* ---------- Icons ---------- */
+.ic { display: inline-block; vertical-align: -.16em; flex: 0 0 auto; }
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--hairline);
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 9px 15px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s var(--ease), color .15s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.tab:hover { background: var(--fill); color: var(--text); }
+.tab.active { background: rgba(94, 92, 230, .18); color: #c7c6ff; }
+.tab.active .ic { color: #a5a3ff; }
+
+/* Eingabefeld mit Icon */
+.input-icon { position: relative; display: inline-flex; align-items: center; }
+.input-icon .ic { position: absolute; left: 12px; color: var(--text-faint); pointer-events: none; }
+.input-icon input { padding-left: 36px; }
+
+/* ---------- Schule: Block-Banner ---------- */
+.school-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Schule: Stundenplan ---------- */
+.tt-today { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+.tt-week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.tt-day { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.tt-day-name {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-faint); padding: 2px 2px 4px;
+}
+.tt-period {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  background: var(--fill);
+  border-radius: 12px;
+  border-left: 3px solid var(--sc, var(--accent));
+  transition: background .18s var(--ease);
+  min-width: 0;
+}
+.tt-period:hover { background: var(--fill-2); }
+.tt-period .li-main { flex: 1; min-width: 0; }
+.tt-period .li-title { font-weight: 600; font-size: 13.5px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; }
+.tt-period .li-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+.tt-period-time {
+  font-size: 11px; font-weight: 700; color: var(--text-dim);
+  font-variant-numeric: tabular-nums; text-align: center; line-height: 1.3; flex: 0 0 auto;
+}
+.tt-period.tt-now { background: rgba(48, 209, 88, .12); box-shadow: inset 0 0 0 1px rgba(48,209,88,.3); }
+.tt-period.tt-past { opacity: .5; }
+.tt-add {
+  border: 1px dashed var(--hairline-2);
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: 11px;
+  padding: 8px;
+  font: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.tt-add:hover { background: var(--fill); color: var(--text); border-color: var(--accent-2); }
+@media (max-width: 760px) {
+  .tt-week {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(150px, 1fr);
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding-bottom: 6px;
+  }
+  .tt-day { scroll-snap-align: start; }
+}
+
+/* ---------- Schule: Fach-Chip ---------- */
+.subj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 8px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 600;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--sc, var(--accent)) 18%, transparent);
+  color: var(--sc, var(--accent));
+}
+.subj-chip::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sc, var(--accent)); flex: 0 0 auto;
+}
+
+/* ---------- Schule: Fächer-Karten ---------- */
+.subj-grid { align-items: start; }
+.subj-card { position: relative; overflow: hidden; }
+.subj-card::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 4px;
+  background: var(--sc, var(--accent));
+}
+.subj-card:hover { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)), var(--bg-elevated); }
+.subj-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.subj-card-name { font-weight: 700; font-size: 15.5px; letter-spacing: -.015em; }
+.subj-card-grade { font-size: 24px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; flex: 0 0 auto; }
+.subj-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; }
+.subj-card-actions { position: absolute; top: 12px; right: 12px; opacity: 0; }
+.subj-card:hover .subj-card-actions { opacity: 1; }
+@media (hover: none) { .subj-card .subj-card-actions { opacity: 1; } }
+.subj-detail { border-left: 4px solid var(--sc, var(--accent)); }
+.subj-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+
+/* ---------- Schule: Noten-Badge ---------- */
+.grade-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 30px; padding: 0 8px;
+  border-radius: 9px;
+  font-weight: 800; font-size: 15px;
+  font-variant-numeric: tabular-nums; flex: 0 0 auto;
+}
+
+/* ---------- Schule: Farb-Auswahl ---------- */
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  transition: transform .12s var(--spring), box-shadow .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch.sel { box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px #fff; }
+
 /* ---------- Responsive (Ergänzungen) ---------- */
 
 @media (max-width: 1020px) {

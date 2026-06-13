@@ -50,13 +50,17 @@ const Store = (() => {
       // 📓 Tagebuch
       journal: [],        // {id, date, mood(1-5), text, highlight, gratitude}
 
-      // 🎓 Ausbildung
+      // 🎓 Schule / Ausbildung
       education: {
-        topics: [],       // {id, name, progress(0-100)}
-        notes: [],        // {id, date, title, content, tag}
+        subjects: [],     // {id, name, short, color, teacher, room, progress(0-100)}  – Fächer/Lernfelder
+        blocks: [],       // {id, label, start, end}  – Blockwochen (Berufsschul-Zeiträume)
+        timetable: [],    // {id, day(1=Mo..5=Fr), start:'HH:MM', end:'HH:MM', subjectId, room, note}
+        topics: [],       // {id, name, progress(0-100)}  – (alt) freier Lernfortschritt
+        notes: [],        // {id, date, title, content, tag, subjectId}  – Markdown-Notizen
+        grades: [],       // {id, date, subjectId, title, value, weight, type}  – Noten
         projects: [],     // {id, name, desc, status:'offen'|'läuft'|'fertig'}
-        exams: [],        // {id, date, title, grade}
-        sessions: []      // {id, date, minutes, topic}  – Lernzeit
+        exams: [],        // {id, date, title, subjectId, grade}  – Prüfungstermine
+        sessions: []      // {id, date, minutes, subjectId, topic}  – Lernzeit
       },
 
       // 🏃 Laufen
@@ -246,7 +250,77 @@ const Store = (() => {
         items.push({ type: 'exam', icon: '🎓', title: x.title, date: x.date, days });
       }
     }
+    const nb = nextBlock(today);
+    if (nb && nb.start) {
+      const days = U.daysBetween(today, nb.start);
+      if (days >= 1 && days <= 90) {
+        items.push({ type: 'block', icon: '🏫', title: nb.label || 'Blockwoche', date: nb.start, days });
+      }
+    }
     return items.sort((a, b) => a.days - b.days).slice(0, 5);
+  }
+
+  /* ---------- Schule / Ausbildung ---------- */
+
+  function subjectById(id) {
+    return state.education.subjects.find(s => s.id === id) || null;
+  }
+
+  /** Alle Noten einheitlich: eigenständige Noten + benotete Prüfungen */
+  function allGrades() {
+    const e = state.education;
+    const out = [];
+    for (const g of (e.grades || [])) {
+      const v = Number(g.value);
+      if (!isNaN(v)) out.push({
+        id: g.id, source: 'grade', date: g.date, subjectId: g.subjectId || null,
+        title: g.title || g.type || 'Note', value: v, weight: g.weight > 0 ? g.weight : 1, type: g.type || 'Note'
+      });
+    }
+    for (const x of e.exams) {
+      const v = Number(x.grade);
+      if (x.grade != null && !isNaN(v)) out.push({
+        id: x.id, source: 'exam', date: x.date, subjectId: x.subjectId || null,
+        title: x.title || 'Prüfung', value: v, weight: 1, type: 'Prüfung'
+      });
+    }
+    return out.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+  }
+
+  function weightedAvg(list) {
+    let w = 0, sum = 0;
+    for (const g of list) { const ww = g.weight > 0 ? g.weight : 1; sum += g.value * ww; w += ww; }
+    return w ? sum / w : NaN;
+  }
+
+  /** Gewichteter Notenschnitt eines Fachs */
+  function subjectAvg(subjectId) {
+    return weightedAvg(allGrades().filter(g => g.subjectId === subjectId));
+  }
+
+  /** Gewichteter Gesamt-Notenschnitt */
+  function overallGradeAvg() {
+    return weightedAvg(allGrades());
+  }
+
+  /** Blockwoche, die das Datum enthält (oder null) */
+  function blockOn(dateStr) {
+    return state.education.blocks.find(b => b.start && b.end && dateStr >= b.start && dateStr <= b.end) || null;
+  }
+
+  /** Nächste Blockwoche, die am/nach dem Datum beginnt (oder null) */
+  function nextBlock(fromStr) {
+    const f = fromStr || U.todayStr();
+    return [...state.education.blocks]
+      .filter(b => b.start && b.start >= f)
+      .sort((a, b) => a.start < b.start ? -1 : 1)[0] || null;
+  }
+
+  /** Stundenplan eines Wochentags (1=Mo..5=Fr), nach Startzeit sortiert */
+  function timetableForDay(day) {
+    return state.education.timetable
+      .filter(t => Number(t.day) === day)
+      .sort((a, b) => (a.start || '') < (b.start || '') ? -1 : 1);
   }
 
   /* ---------- XP / Level ---------- */
@@ -265,6 +339,7 @@ const Store = (() => {
     x += state.goals.filter(g => g.done).length * 150;
     x += state.education.notes.length * 15;
     x += state.education.exams.length * 40;
+    x += (state.education.grades ? state.education.grades.length : 0) * 20;
     x += state.education.sessions.length * 15;
     x += state.runs.length * 40;
     for (const h of state.habits) x += Object.keys(h.log).length * 8;
@@ -287,6 +362,8 @@ const Store = (() => {
     get, update, save, exportJSON, importJSON, reset,
     nutritionDay, nutritionTotals, latestWeight, habitStreak,
     workoutsThisWeek, spentInMonth, incomeInMonth, lastSleep,
-    weekStats, upcoming, xp, level
+    weekStats, upcoming, xp, level,
+    subjectById, allGrades, subjectAvg, overallGradeAvg,
+    blockOn, nextBlock, timetableForDay
   };
 })();
